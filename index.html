@@ -314,12 +314,14 @@
     <input class="nick-input" id="modal-nick-input" type="text" placeholder="新暱稱…" maxlength="16" autocomplete="off">
     <button class="accent-btn" id="modal-nick-save" style="margin-top:4px">儲存</button>
   </div>
-div class="toast" id="toast"></div>
+</div>
+
+<div class="toast" id="toast"></div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
-  getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult,
+  getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult,
   signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
@@ -362,6 +364,8 @@ function toast(msg) {
 
 // ── DOM refs ──────────────────────────────────────────
 const $ = id => document.getElementById(id);
+
+const googleBtnContent = $('google-btn').innerHTML;
 const loginOverlay = $('login-overlay'), nickOverlay = $('nick-overlay');
 const mainHeader = $('main-header'), messagesEl = $('messages');
 const typingBar = $('typing-bar'), replyPreview = $('reply-preview');
@@ -369,25 +373,74 @@ const inputArea = $('input-area'), msgInput = $('msg-input');
 const sendBtn = $('send-btn'), ctxMenu = $('ctx-menu');
 
 // ── Auth ──────────────────────────────────────────────
+const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+const provider = new GoogleAuthProvider();
+provider.setCustomParameters({ prompt: 'select_account' });
+
+let authReady = false; // prevent showLogin() from firing before redirect result is checked
+
+async function initAuth() {
+  // 1. 先嘗試接收 redirect 結果（手機跳回來後）
+  try {
+    const result = await getRedirectResult(auth);
+    if (result?.user) {
+      // redirect 成功，onAuthStateChanged 會接手
+    }
+  } catch(e) {
+    toast('登入失敗：' + (e.code || e.message));
+  }
+
+  authReady = true;
+
+  // 2. 監聽登入狀態
+  onAuthStateChanged(auth, async user => {
+    if (!user) {
+      if (authReady) showLogin();
+      return;
+    }
+    myUser = user; myUid = user.uid;
+    const snap = await get(ref(db, 'users/' + myUid));
+    if (!snap.exists() || !snap.val().nick) {
+      showNickSetup();
+    } else {
+      myNick = snap.val().nick;
+      enterChat();
+    }
+  });
+}
+
+initAuth();
+
 $('google-btn').addEventListener('click', async () => {
-  $('google-btn').disabled = true;
-  $('google-btn').textContent = '正在跳轉…';
-  try { await signInWithRedirect(auth, new GoogleAuthProvider()); }
-  catch { toast('登入失敗，請再試一次'); $('google-btn').disabled=false; $('google-btn').textContent='使用 Google 帳號登入'; }
-});
+  const btn = $('google-btn');
+  btn.disabled = true;
 
-// Handle redirect result after returning from Google
-getRedirectResult(auth).catch(() => toast('登入失敗，請再試一次'));
-
-onAuthStateChanged(auth, async user => {
-  if (!user) { showLogin(); return; }
-  myUser = user; myUid = user.uid;
-  const snap = await get(ref(db, 'users/' + myUid));
-  if (!snap.exists() || !snap.val().nick) {
-    showNickSetup();
+  if (isMobile) {
+    // 手機：redirect（整頁跳轉，不會被攔截）
+    btn.innerHTML = '⏳ 正在跳轉到 Google…';
+    try {
+      await signInWithRedirect(auth, provider);
+    } catch(e) {
+      toast('登入失敗：' + (e.code || e.message));
+      btn.disabled = false;
+      btn.innerHTML = googleBtnContent;
+    }
   } else {
-    myNick = snap.val().nick;
-    enterChat();
+    // 電腦：popup
+    btn.innerHTML = '⏳ 登入中…';
+    try {
+      await signInWithPopup(auth, provider);
+      // 成功後 onAuthStateChanged 自動處理
+    } catch(e) {
+      const msg = e.code === 'auth/popup-blocked'
+        ? '請允許彈出視窗，或檢查瀏覽器設定'
+        : e.code === 'auth/popup-closed-by-user'
+        ? '視窗已關閉，請重試'
+        : '登入失敗：' + (e.code || e.message);
+      toast(msg);
+      btn.disabled = false;
+      btn.innerHTML = googleBtnContent;
+    }
   }
 });
 
