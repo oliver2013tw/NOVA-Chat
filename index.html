@@ -314,14 +314,13 @@
     <input class="nick-input" id="modal-nick-input" type="text" placeholder="新暱稱…" maxlength="16" autocomplete="off">
     <button class="accent-btn" id="modal-nick-save" style="margin-top:4px">儲存</button>
   </div>
-</div>
-
-<div class="toast" id="toast"></div>
+div class="toast" id="toast"></div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
-  getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
+  getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult,
+  signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
   getDatabase, ref, push, onChildAdded, onChildChanged, onChildRemoved,
@@ -371,9 +370,14 @@ const sendBtn = $('send-btn'), ctxMenu = $('ctx-menu');
 
 // ── Auth ──────────────────────────────────────────────
 $('google-btn').addEventListener('click', async () => {
-  try { await signInWithPopup(auth, new GoogleAuthProvider()); }
-  catch { toast('登入失敗，請再試一次'); }
+  $('google-btn').disabled = true;
+  $('google-btn').textContent = '正在跳轉…';
+  try { await signInWithRedirect(auth, new GoogleAuthProvider()); }
+  catch { toast('登入失敗，請再試一次'); $('google-btn').disabled=false; $('google-btn').textContent='使用 Google 帳號登入'; }
 });
+
+// Handle redirect result after returning from Google
+getRedirectResult(auth).catch(() => toast('登入失敗，請再試一次'));
 
 onAuthStateChanged(auth, async user => {
   if (!user) { showLogin(); return; }
