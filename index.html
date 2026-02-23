@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nova Chat</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0e12;
+    --surface: #16161c;
+    --surface2: #1e1e27;
+    --surface3: #252530;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --accent: #c8a97e;
+    --accent-dim: rgba(200,169,126,0.15);
+    --text: #e8e4dc;
+    --text-muted: #7a7880;
+    --text-dim: #55535a;
+    --bubble-me: linear-gradient(135deg, #c8a97e, #b8906a);
+    --bubble-them: #1e1e27;
+    --radius: 18px;
+    --green: #6ec98a;
+    --red: #c87e7e;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+  body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.011) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.011) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+
+  /* Overlays */
+  .overlay{position:fixed;inset:0;background:rgba(10,10,14,.94);backdrop-filter:blur(18px);z-index:100;display:flex;align-items:center;justify-content:center;transition:opacity .3s}
+  .overlay.hidden{opacity:0;pointer-events:none}
+  .card{background:var(--surface);border:1px solid var(--border2);border-radius:22px;padding:44px 52px;max-width:400px;width:92%;text-align:center;animation:cardIn .38s cubic-bezier(.34,1.56,.64,1)}
+  @keyframes cardIn{from{opacity:0;transform:translateY(28px) scale(.95)}to{opacity:1;transform:translateY(0) scale(1)}}
+  .card-logo{font-family:'Playfair Display',serif;font-size:2rem;font-style:italic;color:var(--accent);margin-bottom:6px}
+  .card-sub{font-size:.78rem;color:var(--text-muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:32px}
+
+  .google-btn{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;background:#fff;border:none;border-radius:12px;padding:13px 20px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:.9rem;font-weight:600;color:#1a1a1a;transition:all .2s;box-shadow:0 2px 12px rgba(0,0,0,.3)}
+  .google-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,0,0,.4)}
+  .google-btn:active{transform:translateY(0)}
+  .card-hint{margin-top:20px;font-size:.73rem;color:var(--text-dim);line-height:1.6}
+
+  .nick-input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:12px 16px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:.9rem;outline:none;transition:border-color .2s;text-align:center;margin-bottom:10px;display:block}
+  .nick-input::placeholder{color:var(--text-muted)}
+  .nick-input:focus{border-color:rgba(200,169,126,.4)}
+  .nick-helper{font-size:.72rem;color:var(--text-muted);margin-bottom:20px}
+
+  .accent-btn{width:100%;background:var(--accent);border:none;border-radius:12px;padding:13px;color:#1a1206;font-family:'DM Sans',sans-serif;font-size:.9rem;font-weight:600;cursor:pointer;transition:all .2s}
+  .accent-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(200,169,126,.3)}
+  .accent-btn:active{transform:translateY(0)}
+
+  /* Header */
+  .header{display:flex;align-items:center;justify-content:space-between;padding:16px 28px;border-bottom:1px solid var(--border);background:rgba(14,14,18,.88);backdrop-filter:blur(14px);position:relative;z-index:10;flex-shrink:0;gap:12px}
+  .header-left{display:flex;align-items:center;gap:14px}
+  .logo{font-family:'Playfair Display',serif;font-size:1.4rem;font-style:italic;color:var(--accent)}
+  .room-badge{background:var(--accent-dim);border:1px solid rgba(200,169,126,.2);border-radius:20px;padding:3px 12px;font-size:.7rem;color:var(--accent);letter-spacing:.08em;text-transform:uppercase}
+  .header-right{display:flex;align-items:center;gap:10px;position:relative}
+
+  .online-pill{display:flex;align-items:center;gap:6px;background:rgba(110,201,138,.08);border:1px solid rgba(110,201,138,.15);border-radius:20px;padding:4px 12px;font-size:.72rem;color:var(--green)}
+  .live-dot{width:6px;height:6px;background:var(--green);border-radius:50%;animation:livePulse 2s infinite}
+  @keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+
+  .user-menu-btn{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:30px;padding:5px 12px 5px 6px;cursor:pointer;transition:all .2s;color:var(--text);font-size:.82rem;font-weight:500}
+  .user-menu-btn:hover{border-color:var(--border2);background:var(--surface3)}
+  .u-av{width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0}
+  .u-av.init{display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;background:var(--accent-dim);color:var(--accent)}
+
+  .dropdown{position:absolute;top:calc(100% + 8px);right:0;background:var(--surface2);border:1px solid var(--border2);border-radius:12px;padding:8px;min-width:180px;box-shadow:0 10px 40px rgba(0,0,0,.5);z-index:50;animation:ctxIn .15s ease}
+  @keyframes ctxIn{from{opacity:0;transform:scale(.94) translateY(-6px)}to{opacity:1;transform:scale(1) translateY(0)}}
+  .dropdown-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;font-size:.82rem;cursor:pointer;color:var(--text);transition:background .15s}
+  .dropdown-item:hover{background:rgba(255,255,255,.06)}
+  .dropdown-item.danger{color:var(--red)}
+  .dropdown-item.danger:hover{background:rgba(200,126,126,.08)}
+  .dropdown-sep{height:1px;background:var(--border);margin:6px 0}
+
+  /* Messages */
+  .messages{flex:1;overflow-y:auto;padding:20px 28px;display:flex;flex-direction:column;gap:3px;position:relative;z-index:1;scroll-behavior:smooth}
+  .messages::-webkit-scrollbar{width:4px}
+  .messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+  .date-divider{display:flex;align-items:center;gap:12px;margin:14px 0 6px;color:var(--text-dim);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase}
+  .date-divider::before,.date-divider::after{content:'';flex:1;height:1px;background:var(--border)}
+
+  .sys-msg{text-align:center;font-size:.7rem;color:var(--text-dim);padding:3px 0;animation:fadeUp .2s ease}
+
+  .msg-row{display:flex;align-items:flex-end;gap:8px;animation:fadeUp .22s ease;padding:1px 0}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .msg-row.me{flex-direction:row-reverse}
+
+  .av{width:28px;height:28px;border-radius:50%;flex-shrink:0;object-fit:cover;margin-bottom:2px;font-size:.68rem;font-weight:700;display:flex;align-items:center;justify-content:center}
+
+  .msg-col{display:flex;flex-direction:column;gap:2px;max-width:min(500px,74%)}
+  .msg-row.me .msg-col{align-items:flex-end}
+  .msg-name{font-size:.68rem;color:var(--text-muted);padding:0 5px;font-weight:500}
+
+  .bubble-row{display:flex;align-items:flex-end;gap:6px}
+  .msg-row.me .bubble-row{flex-direction:row-reverse}
+
+  .bubble{padding:9px 14px;border-radius:var(--radius);font-size:.86rem;line-height:1.65;word-break:break-word;cursor:pointer;position:relative;white-space:pre-wrap}
+  .msg-row.me .bubble{background:var(--bubble-me);color:#1a1206;border-bottom-right-radius:5px}
+  .msg-row.them .bubble{background:var(--bubble-them);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:5px}
+  .bubble-time{font-size:.62rem;color:var(--text-dim);white-space:nowrap;flex-shrink:0;padding-bottom:2px}
+
+  .reply-ref{border-left:2px solid rgba(200,169,126,.5);padding:3px 8px;margin-bottom:6px;border-radius:3px;background:rgba(255,255,255,.05);font-size:.74rem}
+  .msg-row.me .bubble .reply-ref{border-left-color:rgba(26,18,6,.3);background:rgba(0,0,0,.1)}
+  .reply-ref-name{font-weight:600;font-size:.66rem;margin-bottom:1px;opacity:.75}
+  .reply-ref-text{opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px}
+
+  /* Reactions */
+  .reactions-bar{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+  .msg-row.me .reactions-bar{justify-content:flex-end}
+  .reaction-chip{display:flex;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:2px 8px;font-size:.78rem;cursor:pointer;transition:all .15s;color:var(--text-muted)}
+  .reaction-chip:hover{border-color:var(--accent);background:var(--accent-dim)}
+  .reaction-chip.mine{border-color:rgba(200,169,126,.4);background:var(--accent-dim);color:var(--accent)}
+
+  /* Context Menu */
+  .ctx-menu{position:fixed;background:var(--surface2);border:1px solid var(--border2);border-radius:12px;padding:6px;z-index:200;min-width:150px;box-shadow:0 10px 40px rgba(0,0,0,.5);animation:ctxIn .13s ease;display:none}
+  .ctx-menu.show{display:block}
+  .ctx-reactions{display:flex;gap:4px;padding:6px 8px 8px;border-bottom:1px solid var(--border);margin-bottom:4px}
+  .ctx-emoji{font-size:1.15rem;cursor:pointer;padding:4px 5px;border-radius:8px;transition:background .15s,transform .15s;line-height:1}
+  .ctx-emoji:hover{background:rgba(255,255,255,.08);transform:scale(1.25)}
+  .ctx-item{display:flex;align-items:center;gap:9px;padding:8px 12px;border-radius:7px;font-size:.8rem;cursor:pointer;color:var(--text);transition:background .15s}
+  .ctx-item:hover{background:rgba(255,255,255,.06);color:var(--accent)}
+  .ctx-item.danger{color:var(--red)}
+  .ctx-item.danger:hover{background:rgba(200,126,126,.07)}
+
+  /* Reply Preview */
+  .reply-preview{display:none;align-items:center;gap:12px;padding:9px 28px;background:rgba(200,169,126,.05);border-top:1px solid rgba(200,169,126,.1);flex-shrink:0;position:relative;z-index:10}
+  .reply-preview.show{display:flex}
+  .rp-bar{width:3px;background:var(--accent);border-radius:2px;align-self:stretch;flex-shrink:0}
+  .rp-content{flex:1;overflow:hidden}
+  .rp-name{font-size:.7rem;color:var(--accent);font-weight:600;margin-bottom:1px}
+  .rp-text{font-size:.77rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rp-close{background:none;border:none;cursor:pointer;color:var(--text-muted);display:flex;align-items:center;padding:4px;border-radius:4px;transition:color .15s}
+  .rp-close:hover{color:var(--text)}
+
+  /* Scroll to bottom */
+  .scroll-btn{position:absolute;bottom:20px;right:20px;width:38px;height:38px;background:var(--surface2);border:1px solid var(--border2);border-radius:50%;display:none;align-items:center;justify-content:center;cursor:pointer;color:var(--text-muted);box-shadow:0 4px 14px rgba(0,0,0,.4);transition:all .2s;z-index:20}
+  .scroll-btn.show{display:flex}
+  .scroll-btn:hover{color:var(--accent);border-color:rgba(200,169,126,.3)}
+  .unread-badge{position:absolute;top:-4px;right:-4px;background:var(--accent);color:#1a1206;font-size:.6rem;font-weight:700;border-radius:10px;padding:1px 5px;display:none}
+
+  /* Typing */
+  .typing-bar{padding:2px 28px 6px;font-size:.72rem;color:var(--text-dim);min-height:20px;display:flex;align-items:center;gap:6px;position:relative;z-index:10}
+  .t-dots{display:flex;gap:3px}
+  .t-dot{width:4px;height:4px;background:var(--text-dim);border-radius:50%;animation:tbounce 1.2s infinite}
+  .t-dot:nth-child(2){animation-delay:.2s}
+  .t-dot:nth-child(3){animation-delay:.4s}
+  @keyframes tbounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-4px)}}
+
+  /* Input */
+  .input-area{padding:12px 28px 20px;border-top:1px solid var(--border);background:rgba(14,14,18,.92);backdrop-filter:blur(12px);position:relative;z-index:10;flex-shrink:0}
+  .input-box{display:flex;align-items:flex-end;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:9px 12px;transition:border-color .2s}
+  .input-box:focus-within{border-color:rgba(200,169,126,.28)}
+  #msg-input{flex:1;background:none;border:none;outline:none;color:var(--text);font-family:'DM Sans',sans-serif;font-size:.87rem;line-height:1.55;resize:none;max-height:110px;overflow-y:auto;padding:2px 4px}
+  #msg-input::placeholder{color:var(--text-muted)}
+  #msg-input::-webkit-scrollbar{width:3px}
+  #msg-input::-webkit-scrollbar-thumb{background:var(--border)}
+  .send-btn{width:36px;height:36px;background:var(--accent);border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#1a1206;transition:all .2s}
+  .send-btn:hover{transform:scale(1.07);box-shadow:0 4px 14px rgba(200,169,126,.3)}
+  .send-btn:active{transform:scale(.95)}
+
+  /* Nick edit modal */
+  .modal-overlay{position:fixed;inset:0;background:rgba(10,10,14,.88);backdrop-filter:blur(14px);z-index:150;display:none;align-items:center;justify-content:center}
+  .modal-overlay.show{display:flex;animation:fadeIn .2s ease}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  .modal{background:var(--surface);border:1px solid var(--border2);border-radius:18px;padding:36px 40px;max-width:360px;width:92%;animation:cardIn .3s cubic-bezier(.34,1.56,.64,1)}
+  .modal h3{font-size:1rem;font-weight:600;margin-bottom:16px}
+
+  /* Avatar colors */
+  .ac0{background:rgba(200,169,126,.18);color:#c8a97e}
+  .ac1{background:rgba(126,184,200,.18);color:#7eb8c8}
+  .ac2{background:rgba(168,126,200,.18);color:#a87ec8}
+  .ac3{background:rgba(126,200,168,.18);color:#7ec8a8}
+  .ac4{background:rgba(200,126,126,.18);color:#c87e7e}
+  .ac5{background:rgba(200,200,126,.18);color:#c8c87e}
+  .ac6{background:rgba(126,200,200,.18);color:#7ec8c8}
+  .ac7{background:rgba(200,142,100,.18);color:#c88e64}
+
+  /* Toast */
+  .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(10px);background:var(--surface3);border:1px solid var(--border2);border-radius:20px;padding:8px 18px;font-size:.78rem;color:var(--text-muted);opacity:0;transition:all .25s;pointer-events:none;z-index:300;white-space:nowrap}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  @media(max-width:600px){
+    .header{padding:13px 16px}
+    .messages{padding:14px 14px}
+    .input-area{padding:10px 14px 16px}
+    .reply-preview,.typing-bar{padding-left:16px;padding-right:16px}
+    .card{padding:34px 28px}
+    .room-badge{display:none}
+  }
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div class="overlay" id="login-overlay">
+  <div class="card">
+    <div class="card-logo">Nova Chat</div>
+    <div class="card-sub">公共聊天室</div>
+    <button class="google-btn" id="google-btn">
+      <svg width="18" height="18" viewBox="0 0 48 48">
+        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        <path fill="none" d="M0 0h48v48H0z"/>
+      </svg>
+      使用 Google 帳號登入
+    </button>
+    <p class="card-hint">登入即代表你同意遵守聊天室使用規範</p>
+  </div>
+</div>
+
+<!-- Nickname Setup -->
+<div class="overlay hidden" id="nick-overlay">
+  <div class="card">
+    <div class="card-logo">歡迎加入 👋</div>
+    <div class="card-sub">設定你的暱稱</div>
+    <input class="nick-input" id="nick-input" type="text" placeholder="輸入暱稱…" maxlength="16" autocomplete="off">
+    <p class="nick-helper">最多 16 字，之後可在設定中修改</p>
+    <button class="accent-btn" id="nick-btn">進入聊天室</button>
+  </div>
+</div>
+
+<!-- Header -->
+<header class="header" id="main-header" style="display:none">
+  <div class="header-left">
+    <div class="logo">Nova Chat</div>
+    <div class="room-badge">公共聊天室</div>
+  </div>
+  <div class="header-right">
+    <div class="online-pill">
+      <div class="live-dot"></div>
+      <span id="online-count">0 人在線</span>
+    </div>
+    <button class="user-menu-btn" id="user-menu-btn">
+      <div class="u-av init" id="hdr-av">?</div>
+      <span id="hdr-nick">使用者</span>
+      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+    <div class="dropdown" id="user-dropdown" style="display:none">
+      <div class="dropdown-item" id="dd-nick">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+        修改暱稱
+      </div>
+      <div class="dropdown-sep"></div>
+      <div class="dropdown-item danger" id="dd-logout">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        登出
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- Messages -->
+<div class="messages" id="messages" style="display:none">
+  <div class="scroll-btn" id="scroll-btn">
+    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    <div class="unread-badge" id="unread-badge"></div>
+  </div>
+</div>
+
+<div class="typing-bar" id="typing-bar" style="display:none"></div>
+
+<div class="reply-preview" id="reply-preview">
+  <div class="rp-bar"></div>
+  <div class="rp-content">
+    <div class="rp-name" id="rp-name"></div>
+    <div class="rp-text" id="rp-text"></div>
+  </div>
+  <button class="rp-close" id="rp-close">
+    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+  </button>
+</div>
+
+<div class="input-area" id="input-area" style="display:none">
+  <div class="input-box">
+    <textarea id="msg-input" placeholder="輸入訊息…" rows="1"></textarea>
+    <button class="send-btn" id="send-btn">
+      <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="M22 2 15 22 11 13 2 9l20-7z"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- Context Menu -->
+<div class="ctx-menu" id="ctx-menu">
+  <div class="ctx-reactions">
+    <span class="ctx-emoji" data-emoji="👍">👍</span>
+    <span class="ctx-emoji" data-emoji="❤️">❤️</span>
+    <span class="ctx-emoji" data-emoji="😂">😂</span>
+    <span class="ctx-emoji" data-emoji="😮">😮</span>
+    <span class="ctx-emoji" data-emoji="🔥">🔥</span>
+  </div>
+  <div class="ctx-item" id="ctx-reply">
+    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+    回覆
+  </div>
+  <div class="ctx-item" id="ctx-copy">
+    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+    複製
+  </div>
+  <div class="ctx-item danger" id="ctx-delete" style="display:none">
+    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+    刪除訊息
+  </div>
+</div>
+
+<!-- Nick Edit Modal -->
+<div class="modal-overlay" id="nick-modal">
+  <div class="modal">
+    <h3>修改暱稱</h3>
+    <input class="nick-input" id="modal-nick-input" type="text" placeholder="新暱稱…" maxlength="16" autocomplete="off">
+    <button class="accent-btn" id="modal-nick-save" style="margin-top:4px">儲存</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {
+  getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import {
+  getDatabase, ref, push, onChildAdded, onChildChanged, onChildRemoved,
+  onValue, set, remove, serverTimestamp, get, update, onDisconnect
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCOTBvBm2kb8wtcTno8MutWSt7VIi0EDvU",
+  authDomain: "nova-chat-01.firebaseapp.com",
+  databaseURL: "https://nova-chat-01-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "nova-chat-01",
+  storageBucket: "nova-chat-01.firebasestorage.app",
+  messagingSenderId: "682076092699",
+  appId: "1:682076092699:web:bebef99942aceea37afbbe",
+  measurementId: "G-KMRBY3PN14"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getDatabase(app);
+
+// ── State ─────────────────────────────────────────────
+let myUser = null, myNick = '', myUid = '';
+let replyingTo = null, ctxTarget = null, ctxMsgKey = null, ctxMsgOwner = null;
+let touchTimer = null, unreadCount = 0, atBottom = true;
+let lastDateStr = '';
+const AC = ['ac0','ac1','ac2','ac3','ac4','ac5','ac6','ac7'];
+
+function colorFor(uid) { return AC[uid.split('').reduce((a,c)=>a+c.charCodeAt(0),0) % AC.length]; }
+function fmtTime(ts)   { const d=new Date(ts); return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0'); }
+function esc(s)        { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── Toast ─────────────────────────────────────────────
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ── DOM refs ──────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const loginOverlay = $('login-overlay'), nickOverlay = $('nick-overlay');
+const mainHeader = $('main-header'), messagesEl = $('messages');
+const typingBar = $('typing-bar'), replyPreview = $('reply-preview');
+const inputArea = $('input-area'), msgInput = $('msg-input');
+const sendBtn = $('send-btn'), ctxMenu = $('ctx-menu');
+
+// ── Auth ──────────────────────────────────────────────
+$('google-btn').addEventListener('click', async () => {
+  try { await signInWithPopup(auth, new GoogleAuthProvider()); }
+  catch { toast('登入失敗，請再試一次'); }
+});
+
+onAuthStateChanged(auth, async user => {
+  if (!user) { showLogin(); return; }
+  myUser = user; myUid = user.uid;
+  const snap = await get(ref(db, 'users/' + myUid));
+  if (!snap.exists() || !snap.val().nick) {
+    showNickSetup();
+  } else {
+    myNick = snap.val().nick;
+    enterChat();
+  }
+});
+
+function showLogin() {
+  loginOverlay.classList.remove('hidden');
+  nickOverlay.classList.add('hidden');
+  mainHeader.style.display = 'none';
+  messagesEl.style.display = 'none';
+  typingBar.style.display = 'none';
+  replyPreview.classList.remove('show');
+  inputArea.style.display = 'none';
+}
+
+function showNickSetup() {
+  loginOverlay.classList.add('hidden');
+  nickOverlay.classList.remove('hidden');
+  $('nick-input').focus();
+}
+
+$('nick-btn').addEventListener('click', saveNick);
+$('nick-input').addEventListener('keydown', e => { if(e.key==='Enter') saveNick(); });
+
+async function saveNick() {
+  const n = $('nick-input').value.trim();
+  if (!n) { $('nick-input').focus(); return; }
+  myNick = n;
+  await set(ref(db, 'users/' + myUid), { nick: n, uid: myUid, photo: myUser.photoURL || '' });
+  nickOverlay.classList.add('hidden');
+  enterChat();
+}
+
+// ── Enter Chat ────────────────────────────────────────
+function enterChat() {
+  loginOverlay.classList.add('hidden');
+  nickOverlay.classList.add('hidden');
+  mainHeader.style.display = 'flex';
+  messagesEl.style.display = 'flex';
+  typingBar.style.display = 'flex';
+  inputArea.style.display = 'block';
+
+  // Header
+  updateHeaderUI();
+  setupPresence();
+  listenOnline();
+  listenMessages();
+  listenTyping();
+  msgInput.focus();
+}
+
+function updateHeaderUI() {
+  const hdrAv = $('hdr-av');
+  const cl = colorFor(myUid);
+  if (myUser.photoURL) {
+    hdrAv.outerHTML = `<img class="u-av" id="hdr-av" src="${esc(myUser.photoURL)}" alt="${esc(myNick[0])}" onerror="this.outerHTML='<div class=\\"u-av init ${cl}\\" id=\\"hdr-av\\">${esc(myNick[0].toUpperCase())}</div>'">`;
+  } else {
+    hdrAv.className = `u-av init ${cl}`;
+    hdrAv.textContent = myNick[0].toUpperCase();
+  }
+  $('hdr-nick').textContent = myNick;
+}
+
+// ── Presence ──────────────────────────────────────────
+function setupPresence() {
+  const presRef = ref(db, 'presence/' + myUid);
+  set(presRef, { nick: myNick, uid: myUid, ts: Date.now() });
+  onDisconnect(presRef).remove();
+}
+
+function listenOnline() {
+  onValue(ref(db,'presence'), snap => {
+    const n = snap.exists() ? Object.keys(snap.val()).length : 0;
+    $('online-count').textContent = n + ' 人在線';
+  });
+}
+
+// ── Messages ──────────────────────────────────────────
+function listenMessages() {
+  const msgsRef = ref(db,'messages');
+  const buf = [];
+  let init = true;
+
+  onChildAdded(msgsRef, snap => {
+    const msg = { ...snap.val(), _key: snap.key };
+    if (init) { buf.push(msg); return; }
+    renderMsg(msg);
+    if (!atBottom) {
+      unreadCount++;
+      const ub = $('unread-badge');
+      ub.textContent = unreadCount > 99 ? '99+' : unreadCount;
+      ub.style.display = 'block';
+      $('scroll-btn').classList.add('show');
+    }
+  });
+
+  onValue(msgsRef, () => {
+    if (!init) return;
+    init = false;
+    // reset
+    messagesEl.innerHTML = `
+      <div class="scroll-btn" id="scroll-btn">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+        <div class="unread-badge" id="unread-badge"></div>
+      </div>`;
+    buf.forEach(m => renderMsg(m, true));
+    scrollBottom();
+    $('scroll-btn').addEventListener('click', () => {
+      scrollBottom(); unreadCount = 0;
+      $('unread-badge').style.display = 'none';
+      $('scroll-btn').classList.remove('show');
+    });
+  }, { onlyOnce: true });
+
+  onChildChanged(msgsRef, snap => updateReactions({ ...snap.val(), _key: snap.key }));
+
+  onChildRemoved(msgsRef, snap => {
+    const el = document.querySelector(`.msg-row[data-key="${snap.key}"]`);
+    if (el) { el.style.cssText += 'opacity:0;transform:scale(.95);transition:all .2s'; setTimeout(() => el.remove(), 200); }
+  });
+}
+
+// ── Render ────────────────────────────────────────────
+function renderMsg(msg, skipScroll = false) {
+  if (msg.type === 'system') { appendSystem(msg.text); if (!skipScroll) scrollBottom(); return; }
+
+  const isMe = msg.uid === myUid;
+  const ts = msg.ts || Date.now();
+  const dateStr = new Date(ts).toLocaleDateString('zh-TW', { month:'long', day:'numeric' });
+
+  if (dateStr !== lastDateStr) {
+    lastDateStr = dateStr;
+    const dd = document.createElement('div');
+    dd.className = 'date-divider'; dd.textContent = dateStr;
+    messagesEl.appendChild(dd);
+  }
+
+  const cl = colorFor(msg.uid || '');
+  const letter = (msg.nick || '?')[0].toUpperCase();
+
+  let replyHTML = '';
+  if (msg.replyTo) replyHTML = `<div class="reply-ref"><div class="reply-ref-name">${esc(msg.replyTo.nick)}</div><div class="reply-ref-text">${esc(msg.replyTo.text)}</div></div>`;
+
+  const photo = isMe ? (myUser.photoURL || '') : (msg.photo || '');
+  const avHTML = photo
+    ? `<img class="av" src="${esc(photo)}" alt="${letter}" onerror="this.outerHTML='<div class=\\"av ${cl}\\">${letter}</div>'">`
+    : `<div class="av ${cl}">${letter}</div>`;
+
+  const row = document.createElement('div');
+  row.className = `msg-row ${isMe ? 'me' : 'them'}`;
+  row.dataset.key = msg._key;
+
+  row.innerHTML = `
+    ${avHTML}
+    <div class="msg-col">
+      ${!isMe ? `<div class="msg-name">${esc(msg.nick||'?')}</div>` : ''}
+      <div class="bubble-row">
+        <div class="bubble" data-key="${esc(msg._key)}" data-uid="${esc(msg.uid||'')}" data-nick="${esc(msg.nick||'')}" data-text="${esc(msg.text)}">${replyHTML}${esc(msg.text)}</div>
+        <div class="bubble-time">${fmtTime(ts)}</div>
+      </div>
+      <div class="reactions-bar" id="rb-${esc(msg._key)}"></div>
+    </div>`;
+
+  const bubble = row.querySelector('.bubble');
+  bubble.addEventListener('contextmenu', onCtxEvent);
+  bubble.addEventListener('touchstart', e => {
+    touchTimer = setTimeout(() => showCtx(e.touches[0].clientX, e.touches[0].clientY, bubble), 480);
+  }, { passive: true });
+
+  messagesEl.appendChild(row);
+  renderReactions(msg);
+  if (!skipScroll) scrollBottom();
+}
+
+function appendSystem(text) {
+  const d = document.createElement('div');
+  d.className = 'sys-msg'; d.textContent = text;
+  messagesEl.appendChild(d);
+}
+
+function pushSystem(text) {
+  push(ref(db,'messages'), { type:'system', text, ts: serverTimestamp() });
+}
+
+// ── Reactions ─────────────────────────────────────────
+function renderReactions(msg) {
+  const bar = document.getElementById('rb-' + msg._key);
+  if (!bar) return;
+  const reactions = msg.reactions || {};
+  const counts = {}, mine = {};
+  Object.entries(reactions).forEach(([uid, emoji]) => {
+    counts[emoji] = (counts[emoji]||0) + 1;
+    if (uid === myUid) mine[emoji] = true;
+  });
+  bar.innerHTML = '';
+  Object.entries(counts).forEach(([emoji, count]) => {
+    const chip = document.createElement('div');
+    chip.className = 'reaction-chip' + (mine[emoji] ? ' mine' : '');
+    chip.innerHTML = `<span>${emoji}</span><span>${count}</span>`;
+    chip.addEventListener('click', () => toggleReaction(msg._key, emoji));
+    bar.appendChild(chip);
+  });
+}
+
+function updateReactions(msg) { renderReactions(msg); }
+
+async function toggleReaction(key, emoji) {
+  const rRef = ref(db, `messages/${key}/reactions/${myUid}`);
+  const snap = await get(rRef);
+  if (snap.exists() && snap.val() === emoji) await remove(rRef);
+  else await set(rRef, emoji);
+}
+
+// ── Typing ────────────────────────────────────────────
+let typingTO;
+function listenTyping() {
+  msgInput.addEventListener('input', () => {
+    set(ref(db,'typing/'+myUid), myNick);
+    clearTimeout(typingTO);
+    typingTO = setTimeout(() => remove(ref(db,'typing/'+myUid)), 2500);
+  });
+  onValue(ref(db,'typing'), snap => {
+    if (!snap.exists()) { typingBar.innerHTML=''; return; }
+    const typers = Object.entries(snap.val()).filter(([uid])=>uid!==myUid).map(([,n])=>n);
+    if (!typers.length) { typingBar.innerHTML=''; return; }
+    typingBar.innerHTML = `<div class="t-dots"><div class="t-dot"></div><div class="t-dot"></div><div class="t-dot"></div></div>${esc(typers.slice(0,3).join('、'))} 正在輸入…`;
+  });
+}
+
+// ── Send ──────────────────────────────────────────────
+async function sendMsg() {
+  const text = msgInput.value.trim();
+  if (!text) return;
+  const snap = await get(ref(db,'users/'+myUid));
+  if (snap.exists()) myNick = snap.val().nick;
+
+  const payload = { uid:myUid, nick:myNick, photo:myUser.photoURL||'', text, ts:serverTimestamp() };
+  if (replyingTo) { payload.replyTo = replyingTo; clearReply(); }
+  push(ref(db,'messages'), payload);
+  msgInput.value = ''; msgInput.style.height = '';
+  remove(ref(db,'typing/'+myUid));
+}
+
+sendBtn.addEventListener('click', sendMsg);
+msgInput.addEventListener('keydown', e => { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();} });
+msgInput.addEventListener('input', () => { msgInput.style.height='auto'; msgInput.style.height=Math.min(msgInput.scrollHeight,110)+'px'; });
+
+// ── Context Menu ──────────────────────────────────────
+function onCtxEvent(e) { e.preventDefault(); showCtx(e.clientX, e.clientY, e.currentTarget); }
+
+function showCtx(x, y, bubble) {
+  ctxTarget = bubble; ctxMsgKey = bubble.dataset.key; ctxMsgOwner = bubble.dataset.uid;
+  $('ctx-delete').style.display = ctxMsgOwner === myUid ? 'flex' : 'none';
+  ctxMenu.style.left = Math.min(x, innerWidth-165)+'px';
+  ctxMenu.style.top  = Math.min(y, innerHeight-170)+'px';
+  ctxMenu.classList.add('show');
+}
+
+document.addEventListener('click', () => ctxMenu.classList.remove('show'));
+document.addEventListener('touchend', () => clearTimeout(touchTimer));
+document.addEventListener('touchmove', () => clearTimeout(touchTimer), { passive:true });
+
+document.querySelectorAll('.ctx-emoji').forEach(btn => {
+  btn.addEventListener('click', () => { if(ctxMsgKey) toggleReaction(ctxMsgKey, btn.dataset.emoji); });
+});
+
+$('ctx-reply').addEventListener('click', () => {
+  if (!ctxTarget) return;
+  replyingTo = { nick: ctxTarget.dataset.nick, text: ctxTarget.dataset.text };
+  $('rp-name').textContent = '回覆 ' + replyingTo.nick;
+  $('rp-text').textContent = replyingTo.text;
+  replyPreview.classList.add('show');
+  msgInput.focus();
+});
+
+$('ctx-copy').addEventListener('click', () => {
+  if (!ctxTarget) return;
+  navigator.clipboard.writeText(ctxTarget.dataset.text).then(() => toast('已複製到剪貼簿'));
+});
+
+$('ctx-delete').addEventListener('click', async () => {
+  if (!ctxMsgKey || ctxMsgOwner !== myUid) return;
+  await remove(ref(db,'messages/'+ctxMsgKey));
+  toast('訊息已刪除');
+});
+
+$('rp-close').addEventListener('click', clearReply);
+function clearReply() { replyingTo = null; replyPreview.classList.remove('show'); }
+
+// ── Scroll ────────────────────────────────────────────
+function scrollBottom() { messagesEl.scrollTop = messagesEl.scrollHeight; }
+messagesEl.addEventListener('scroll', () => {
+  atBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 80;
+  if (atBottom) {
+    $('scroll-btn')?.classList.remove('show');
+    unreadCount = 0;
+    const ub = $('unread-badge');
+    if (ub) ub.style.display = 'none';
+  }
+});
+
+// ── User Dropdown ─────────────────────────────────────
+$('user-menu-btn').addEventListener('click', e => {
+  e.stopPropagation();
+  const dd = $('user-dropdown');
+  dd.style.display = dd.style.display==='none' ? 'block' : 'none';
+});
+document.addEventListener('click', () => { $('user-dropdown').style.display='none'; });
+
+$('dd-nick').addEventListener('click', () => {
+  $('modal-nick-input').value = myNick;
+  $('nick-modal').classList.add('show');
+  $('modal-nick-input').focus();
+});
+
+$('modal-nick-save').addEventListener('click', async () => {
+  const n = $('modal-nick-input').value.trim();
+  if (!n) return;
+  await update(ref(db,'users/'+myUid), { nick: n });
+  myNick = n; $('hdr-nick').textContent = n;
+  $('nick-modal').classList.remove('show');
+  toast('暱稱已更新！');
+});
+
+$('modal-nick-input').addEventListener('keydown', e => { if(e.key==='Enter') $('modal-nick-save').click(); });
+
+$('nick-modal').addEventListener('click', e => { if(e.target===$('nick-modal')) $('nick-modal').classList.remove('show'); });
+
+$('dd-logout').addEventListener('click', async () => {
+  await remove(ref(db,'presence/'+myUid));
+  await remove(ref(db,'typing/'+myUid));
+  pushSystem(myNick + ' 離開了聊天室');
+  await signOut(auth);
+});
+</script>
+</body>
+</html>
